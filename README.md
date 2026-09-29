@@ -19,4 +19,4 @@ Yama: 66, 33
 
 - **Styles**
   - *Old School* (default): A flat and basic health bar. Breakpoints are split into separate segments.
-  - *Evolution*: A rounder health bar with a glossy gradient. Breakpoints are visual notches on the bar.
+  - *Modern*: A rounder health bar with a glossy gradient. Breakpoints are visual notches on the bar.
