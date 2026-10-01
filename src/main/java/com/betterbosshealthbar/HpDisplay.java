@@ -5,18 +5,13 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum HpDisplay
-{
-	NONE("None"),
-	PERCENT("Percent"),
-	HITPOINTS("Hitpoints"),
-	BOTH("Both");
+public enum HpDisplay {
+    NONE("None"), PERCENT("Percent"), HITPOINTS("Hitpoints"), BOTH("Both");
 
-	private final String name;
+    private final String name;
 
-	@Override
-	public String toString()
-	{
-		return name;
-	}
+    @Override
+    public String toString() {
+        return name;
+    }
 }

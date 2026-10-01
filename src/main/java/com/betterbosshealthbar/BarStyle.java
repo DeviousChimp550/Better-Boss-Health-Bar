@@ -5,16 +5,13 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum BarStyle
-{
-	OLD_SCHOOL("Old School"),
-	MODERN("Modern");
+public enum BarStyle {
+    OLD_SCHOOL("Old School"), RUNESCAPE_3("Runescape 3");
 
-	private final String name;
+    private final String name;
 
-	@Override
-	public String toString()
-	{
-		return name;
-	}
+    @Override
+    public String toString() {
+        return name;
+    }
 }

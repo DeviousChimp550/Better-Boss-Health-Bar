@@ -1,11 +1,16 @@
 package com.betterbosshealthbar;
 
 import com.google.inject.Provides;
+
+import java.awt.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +26,7 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetPositionMode;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -37,243 +43,264 @@ import net.runelite.client.util.Text;
  */
 @Slf4j
 @PluginDescriptor(
-	name = "Better Boss Health Bar",
-	description = "Replaces the default boss health bar with a slim, animated, customizable one",
-	tags = {"boss", "health", "hp", "bar", "hud", "overlay", "pvm"}
+        name = "Better Boss Health Bar",
+        description = "Replaces the default boss health bar with a slim, animated, customizable one",
+        tags = {"boss", "health", "hp", "bar", "hud", "overlay", "pvm"}
 )
-public class BetterBossHealthBarPlugin extends Plugin
-{
-	@Inject
-	private Client client;
+public class BetterBossHealthBarPlugin extends Plugin {
+    @Inject
+    private Client client;
 
-	@Inject
-	private ClientThread clientThread;
+    @Inject
+    private ClientThread clientThread;
 
-	@Inject
-	private OverlayManager overlayManager;
+    @Inject
+    private OverlayManager overlayManager;
 
-	@Inject
-	private BetterBossHealthBarOverlay overlay;
+    @Inject
+    private BetterBossHealthBarOverlay overlay;
 
-	@Inject
-	private BetterBossHealthBarConfig config;
+    @Inject
+    private BetterBossHealthBarConfig config;
 
-	@Getter(AccessLevel.PACKAGE)
-	private final HealthBarState state = new HealthBarState();
+    @Getter(AccessLevel.PACKAGE)
+    private final HealthBarState state = new HealthBarState();
 
-	/** Game tick counter used to time the damage buffer delay. */
-	@Getter(AccessLevel.PACKAGE)
-	private int tickCount;
+    /**
+     * Game tick counter used to time the damage buffer delay.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private int tickCount;
 
-	/** Width of the default boss health bar, used when the configured width is 0. */
-	@Getter(AccessLevel.PACKAGE)
-	private int gameBarWidth;
+    /**
+     * Width of the default boss health bar, used when the configured width is 0.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private int gameBarWidth;
 
-	private Map<String, float[]> breakpoints = Collections.emptyMap();
-	private String breakpointsName;
-	private float[] breakpointsForName = Breakpoints.NONE;
+    private Map<String, float[]> breakpoints = Collections.emptyMap();
+    private String breakpointsName;
+    private float[] breakpointsForName = Breakpoints.NONE;
 
-	/** Default health bar components this plugin has hidden, restored on shutdown. */
-	private final Set<Integer> hiddenWidgetIds = new HashSet<>();
+    @Getter
+    private Font rs3Font;
+    @Getter
+    private Font rs3SmallFont;
 
-	private int lastBossVarbit = -1;
+    /**
+     * Default health bar components this plugin has hidden, restored on shutdown.
+     */
+    private final Set<Integer> hiddenWidgetIds = new HashSet<>();
 
-	@Override
-	protected void startUp()
-	{
-		loadBreakpoints();
-		overlayManager.add(overlay);
-	}
+    private int lastBossVarbit = -1;
 
-	@Override
-	protected void shutDown()
-	{
-		overlayManager.remove(overlay);
-		state.reset();
-		clientThread.invoke(this::restoreGameBar);
-	}
+    // Store the dimensions of the original gamebar to restore them later.
+    private int originalWidth = -1;
+    private int originalHeight = -1;
 
-	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
-	{
-		if (BetterBossHealthBarConfig.GROUP.equals(event.getGroup())
-			&& BetterBossHealthBarConfig.BREAKPOINTS_KEY.equals(event.getKey()))
-		{
-			loadBreakpoints();
-		}
-	}
+    @Override
+    protected void startUp() {
+        // Load RS3-style font
+        try (InputStream is = getClass().getResourceAsStream("/fonts/Cinzel-Regular.ttf")) {
+            rs3Font = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(16f);
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(rs3Font);
+        } catch (IOException | FontFormatException e) {
+            log.error("Failed to load RS3 font", e);
+        }
 
-	@Subscribe
-	public void onGameTick(GameTick event)
-	{
-		tickCount++;
-	}
+        try (InputStream is = getClass().getResourceAsStream("/fonts/NotoSans-Regular.ttf")) {
+            rs3SmallFont = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(16f);
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(rs3Font);
+        } catch (IOException | FontFormatException e) {
+            log.error("Failed to load RS3 font", e);
+        }
 
-	@Subscribe
-	public void onClientTick(ClientTick event)
-	{
-		Widget hp = getGameBar();
-		if (hp == null)
-		{
-			state.reset();
-			return;
-		}
+        loadBreakpoints();
+        overlayManager.add(overlay);
+    }
 
-		gameBarWidth = hp.getWidth();
-		int current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
-		int max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
-		state.update(readBossName(), current, max, tickCount, System.nanoTime(), config.bufferDelay());
-	}
+    @Override
+    protected void shutDown() {
+        rs3Font = null;
+        overlayManager.remove(overlay);
+        state.reset();
+        clientThread.invoke(this::restoreGameBar);
+    }
 
-	@Subscribe
-	public void onScriptPreFired(ScriptPreFired event)
-	{
-		// Give the game's update script the bar exactly as the game left it, so the
-		// script decides which pieces should be visible
-		if (event.getScriptId() == ScriptID.HP_HUD_UPDATE)
-		{
-			restoreGameBar();
-		}
-	}
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event) {
+        if (BetterBossHealthBarConfig.GROUP.equals(event.getGroup())
+                && BetterBossHealthBarConfig.BREAKPOINTS_KEY.equals(event.getKey())) {
+            loadBreakpoints();
+        }
+    }
 
-	@Subscribe
-	public void onScriptPostFired(ScriptPostFired event)
-	{
-		if (event.getScriptId() == ScriptID.HP_HUD_UPDATE)
-		{
-			updateGameBar();
-		}
-	}
+    @Subscribe
+    public void onGameTick(GameTick event) {
+        tickCount++;
+    }
 
-	@Subscribe
-	public void onBeforeRender(BeforeRender event)
-	{
-		// The game's scripts may unhide pieces at any time, so hide them again every frame
-		Widget hp = updateGameBar();
-		if (hp != null)
-		{
-			overlay.anchorTo(hp.getBounds());
-		}
-	}
+    @Subscribe
+    public void onClientTick(ClientTick event) {
+        if (config.preview()) {
+            state.update("Yama", 750, 1500, 0, 0, 0);
+            state.previewBuffer();
+            return;
+        }
 
-	/**
-	 * @return the game's health bar while it is showing a bar this plugin replaces, otherwise null
-	 */
-	private Widget getGameBar()
-	{
-		Widget hp = client.getWidget(InterfaceID.HpbarHud.HP);
-		// The plugin hides only the children of HP, so HP's own hidden state still tells
-		// whether the game is showing its health bar.
-		if (hp == null || hp.isHidden() || client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP) <= 0)
-		{
-			return null;
-		}
+        Widget hp = getGameBar();
+        if (hp == null) {
+            state.deactivate();
+            return;
+        }
 
-		int bossVarbit = client.getVarbitValue(VarbitID.HPBAR_HUD_BOSS);
-		if (bossVarbit != lastBossVarbit)
-		{
-			lastBossVarbit = bossVarbit;
-			log.debug("HP hud boss varbit {} (npc {})", bossVarbit, client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC));
-		}
-		return bossVarbit == 1 ? hp : null;
-	}
+        gameBarWidth = hp.getWidth();
+        int current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
+        int max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
 
-	/**
-	 * Hides the game's health bar while it is showing a bar this plugin replaces, and hands
-	 * it back untouched otherwise.
-	 *
-	 * @return the game's health bar if it is being replaced, otherwise null
-	 */
-	private Widget updateGameBar()
-	{
-		Widget hp = getGameBar();
-		if (hp == null)
-		{
-			restoreGameBar();
-			return null;
-		}
+        state.update(readBossName(), current, max, tickCount, System.nanoTime(), config.bufferDelay());
+    }
 
-		Widget[] children = hp.getStaticChildren();
-		if (children != null)
-		{
-			for (Widget child : children)
-			{
-				// Only hide pieces the game has visible, so restoring never shows
-				// something the game meant to keep hidden
-				if (!child.isSelfHidden())
-				{
-					child.setHidden(true);
-					hiddenWidgetIds.add(child.getId());
-				}
-			}
-		}
-		return hp;
-	}
+    @Subscribe
+    public void onScriptPreFired(ScriptPreFired event) {
+        // Give the game's update script the bar exactly as the game left it, so the
+        // script decides which pieces should be visible
+        if (event.getScriptId() == ScriptID.HP_HUD_UPDATE) {
+            restoreGameBar();
+        }
+    }
 
-	/**
-	 * @return breakpoint fractions (ascending, 0-1) configured for the given boss
-	 */
-	float[] getBreakpoints(String name)
-	{
-		if (!name.equals(breakpointsName))
-		{
-			breakpointsName = name;
-			breakpointsForName = breakpoints.getOrDefault(Breakpoints.normalizeName(name), Breakpoints.NONE);
-		}
-		return breakpointsForName;
-	}
+    @Subscribe
+    public void onScriptPostFired(ScriptPostFired event) {
+        if (event.getScriptId() == ScriptID.HP_HUD_UPDATE) {
+            updateGameBar();
+        }
+    }
 
-	private void loadBreakpoints()
-	{
-		breakpoints = Breakpoints.parse(config.breakpoints());
-		breakpointsName = null;
-	}
+    @Subscribe
+    public void onBeforeRender(BeforeRender event) {
+        // The game's scripts may unhide pieces at any time, so update them again every frame
+        updateGameBar();
+    }
 
-	private String readBossName()
-	{
-		Widget nameWidget = client.getWidget(InterfaceID.HpbarHud.CREATURE_NAME);
-		if (nameWidget != null)
-		{
-			String text = nameWidget.getText();
-			if (text != null && !text.isEmpty())
-			{
-				return Text.removeTags(text);
-			}
-		}
+    /**
+     * @return the game's health bar while it is showing a bar this plugin replaces, otherwise null
+     */
+    private Widget getGameBar() {
+        Widget hp = client.getWidget(InterfaceID.HpbarHud.HP);
+        // The plugin hides only the children of HP, so HP's own hidden state still tells
+        // whether the game is showing its health bar.
+        if (hp == null || hp.isHidden() || client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP) <= 0) {
+            return null;
+        }
 
-		int npcId = client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC);
-		if (npcId > 0)
-		{
-			NPCComposition npc = client.getNpcDefinition(npcId);
-			if (npc != null && npc.getName() != null)
-			{
-				return Text.removeTags(npc.getName());
-			}
-		}
-		return "";
-	}
+        int bossVarbit = client.getVarbitValue(VarbitID.HPBAR_HUD_BOSS);
+        if (bossVarbit != lastBossVarbit) {
+            lastBossVarbit = bossVarbit;
+            log.debug("HP hud boss varbit {} (npc {})", bossVarbit, client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC));
+        }
+        return bossVarbit == 1 ? hp : null;
+    }
 
-	private void restoreGameBar()
-	{
-		if (hiddenWidgetIds.isEmpty())
-		{
-			return;
-		}
+    /**
+     * Hides the game's health bar while it is showing a bar this plugin replaces, and hands
+     * it back untouched otherwise.
+     *
+     * @return the game's health bar if it is being replaced, otherwise null
+     */
+    private Widget updateGameBar() {
+        Widget hp = getGameBar();
+        if (hp == null) {
+            restoreGameBar();
+            return null;
+        }
 
-		for (int id : hiddenWidgetIds)
-		{
-			Widget widget = client.getWidget(id);
-			if (widget != null)
-			{
-				widget.setHidden(false);
-			}
-		}
-		hiddenWidgetIds.clear();
-	}
+        // Cache the pristine vanilla values once before we touch anything
+        if (originalWidth == -1) {
+            originalWidth = hp.getOriginalWidth();
+            originalHeight = hp.getOriginalHeight();
+        }
 
-	@Provides
-	BetterBossHealthBarConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(BetterBossHealthBarConfig.class);
-	}
+        // Collapse the original health container TO DUST!!!!
+        hp.setOriginalWidth(0);
+        hp.setOriginalHeight(0);
+
+        Widget[] children = hp.getStaticChildren();
+        if (children != null) {
+            for (Widget child : children) {
+                // Only hide pieces the game has visible, so restoring never shows
+                // something the game meant to keep hidden
+                if (!child.isSelfHidden()) {
+                    child.setHidden(true);
+                    hiddenWidgetIds.add(child.getId());
+                }
+            }
+        }
+
+        hp.revalidate();
+        return hp;
+    }
+
+    /**
+     * @return breakpoint fractions (ascending, 0-1) configured for the given boss
+     */
+    float[] getBreakpoints(String name) {
+        if (!name.equals(breakpointsName)) {
+            breakpointsName = name;
+            breakpointsForName = breakpoints.getOrDefault(Breakpoints.normalizeName(name), Breakpoints.NONE);
+        }
+        return breakpointsForName;
+    }
+
+    private void loadBreakpoints() {
+        breakpoints = Breakpoints.parse(config.breakpoints());
+        breakpointsName = null;
+    }
+
+    private String readBossName() {
+        Widget nameWidget = client.getWidget(InterfaceID.HpbarHud.CREATURE_NAME);
+        if (nameWidget != null) {
+            String text = nameWidget.getText();
+            if (text != null && !text.isEmpty()) {
+                return Text.removeTags(text);
+            }
+        }
+
+        int npcId = client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC);
+        if (npcId > 0) {
+            NPCComposition npc = client.getNpcDefinition(npcId);
+            if (npc != null && npc.getName() != null) {
+                return Text.removeTags(npc.getName());
+            }
+        }
+        return "";
+    }
+
+    private void restoreGameBar() {
+        if (hiddenWidgetIds.isEmpty()) {
+            return;
+        }
+
+        for (int id : hiddenWidgetIds) {
+            Widget widget = client.getWidget(id);
+            if (widget != null) {
+                widget.setHidden(false);
+            }
+        }
+        hiddenWidgetIds.clear();
+
+        // Restore original health bar once it has been unhidden and can be properly referenced.
+        Widget hp = getGameBar();
+        if (hp != null) {
+            // Rise the OG phoenix from the ashes when the plugin goes on vacation.
+            hp.setOriginalWidth(originalWidth);
+            hp.setOriginalHeight(originalHeight);
+            hp.revalidate();
+        }
+    }
+
+    @Provides
+    BetterBossHealthBarConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(BetterBossHealthBarConfig.class);
+    }
 }
