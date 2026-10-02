@@ -77,6 +77,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
      */
     @Getter(AccessLevel.PACKAGE)
     private int gameBarWidth;
+    private boolean collapsed;
 
     private Map<String, float[]> breakpoints = Collections.emptyMap();
     private String breakpointsName;
@@ -215,29 +216,49 @@ public class BetterBossHealthBarPlugin extends Plugin {
             return null;
         }
 
-        // Cache the pristine vanilla values once before we touch anything
+        // Store original dimensions
         if (originalWidth == -1) {
             originalWidth = hp.getOriginalWidth();
             originalHeight = hp.getOriginalHeight();
         }
 
-        // Collapse the original health container TO DUST!!!!
-        hp.setOriginalWidth(0);
-        hp.setOriginalHeight(0);
+        // Check if dimensions have been uncollapsed.
+        boolean hasUncollapsedDimensions = hp.getOriginalWidth() != 0 || hp.getOriginalHeight() != 0;
 
-        Widget[] children = hp.getStaticChildren();
-        if (children != null) {
-            for (Widget child : children) {
-                // Only hide pieces the game has visible, so restoring never shows
-                // something the game meant to keep hidden
-                if (!child.isSelfHidden()) {
-                    child.setHidden(true);
-                    hiddenWidgetIds.add(child.getId());
+        // Check if children managed to sneak back into visibility
+        if (!hasUncollapsedDimensions && collapsed) {
+            Widget[] children = hp.getStaticChildren();
+            if (children != null) {
+                for (Widget child : children) {
+                    // If a child we tracked sneaked back to being visible, flag an override
+                    if (hiddenWidgetIds.contains(child.getId()) && !child.isHidden()) {
+                        hasUncollapsedDimensions = true;
+                        break;
+                    }
                 }
             }
         }
 
-        hp.revalidate();
+        // Perform game widget collapse when necessary
+        if (hasUncollapsedDimensions || !collapsed) {
+            hp.setOriginalWidth(0);
+            hp.setOriginalHeight(0);
+
+            Widget[] children = hp.getStaticChildren();
+            if (children != null) {
+                for (Widget child : children) {
+                    if (!child.isSelfHidden() || hiddenWidgetIds.contains(child.getId())) {
+                        child.setHidden(true);
+                        hiddenWidgetIds.add(child.getId());
+                    }
+                }
+            }
+
+            // Revalidate ONLY during a collapse.
+            hp.revalidate();
+            collapsed = true;
+        }
+
         return hp;
     }
 
@@ -278,25 +299,32 @@ public class BetterBossHealthBarPlugin extends Plugin {
     }
 
     private void restoreGameBar() {
-        if (hiddenWidgetIds.isEmpty()) {
+        Widget hp = getGameBar();
+        if (hp == null) {
+            // If the game bar doesn't exist (e.g. hopped worlds), just wipe states
+            hiddenWidgetIds.clear();
+            collapsed = false;
             return;
         }
 
-        for (int id : hiddenWidgetIds) {
-            Widget widget = client.getWidget(id);
-            if (widget != null) {
-                widget.setHidden(false);
+        // Unhide the children using the parent container references
+        Widget[] children = hp.getStaticChildren();
+        if (children != null && !hiddenWidgetIds.isEmpty()) {
+            for (Widget child : children) {
+                if (hiddenWidgetIds.contains(child.getId())) {
+                    child.setHidden(false);
+                }
             }
         }
-        hiddenWidgetIds.clear();
+        hiddenWidgetIds.clear(); // Always clean up the IDs
 
-        // Restore original health bar once it has been unhidden and can be properly referenced.
-        Widget hp = getGameBar();
-        if (hp != null) {
-            // Rise the OG phoenix from the ashes when the plugin goes on vacation.
+        // Rise the OG phoenix from the ashes!
+        if (collapsed) {
             hp.setOriginalWidth(originalWidth);
             hp.setOriginalHeight(originalHeight);
-            hp.revalidate();
+            hp.revalidate(); // Revalidate exactly once to bring it back cleanly
+
+            collapsed = false; // Reset collapsed state
         }
     }
 
