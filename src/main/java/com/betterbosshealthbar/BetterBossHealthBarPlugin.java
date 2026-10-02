@@ -101,7 +101,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
     @Override
     protected void startUp() {
         // Load RS3-style font
-        try (InputStream is = getClass().getResourceAsStream("/fonts/Cinzel-Regular.ttf")) {
+        try (InputStream is = getClass().getResourceAsStream("/fonts/Cinzel-Bold.ttf")) {
             rs3Font = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(16f);
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(rs3Font);
         } catch (IOException | FontFormatException e) {
@@ -258,6 +258,14 @@ public class BetterBossHealthBarPlugin extends Plugin {
     }
 
     private String readBossName() {
+        int npcId = client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC);
+        if (npcId > 0) {
+            NPCComposition npc = client.getNpcDefinition(npcId);
+            if (npc != null && npc.getName() != null) {
+                return Text.removeTags(npc.getName());
+            }
+        }
+
         Widget nameWidget = client.getWidget(InterfaceID.HpbarHud.CREATURE_NAME);
         if (nameWidget != null) {
             String text = nameWidget.getText();
@@ -266,13 +274,6 @@ public class BetterBossHealthBarPlugin extends Plugin {
             }
         }
 
-        int npcId = client.getVarpValue(VarPlayerID.HPBAR_HUD_NPC);
-        if (npcId > 0) {
-            NPCComposition npc = client.getNpcDefinition(npcId);
-            if (npc != null && npc.getName() != null) {
-                return Text.removeTags(npc.getName());
-            }
-        }
         return "";
     }
 
