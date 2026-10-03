@@ -2,11 +2,9 @@ package com.betterbosshealthbar;
 
 import java.awt.*;
 import java.awt.geom.Area;
-import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import javax.inject.Inject;
-import javax.swing.text.Style;
 
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
@@ -96,11 +94,11 @@ class BetterBossHealthBarOverlay extends Overlay {
 
             String name = state.getName();
             int barY = 0;
-            if (config.nameFontSize() > 0 && !name.isEmpty()) {
-                g.setFont(getNameFont(config.nameFontSize()));
+            if (config.nameSize() > 0 && !name.isEmpty()) {
+                g.setFont(getNameFont(config.nameSize()));
                 FontMetrics fm = g.getFontMetrics();
                 int x = (width - fm.stringWidth(name)) / 2;
-                drawText(g, name, x, fm.getAscent(), config.nameColor(), true);
+                drawText(g, name, x, fm.getAscent(), config.nameColor(), config.nameShadowOffset(), config.nameShadowColor());
                 barY = fm.getAscent() + NAME_GAP;
             }
 
@@ -270,7 +268,7 @@ class BetterBossHealthBarOverlay extends Overlay {
 
     private void drawHpText(Graphics2D g, HealthBarState state, int barY, int width, int barHeight) {
         HpDisplay display = config.hpDisplay();
-        int size = config.hpFontSize();
+        int size = config.hpSize();
 
         if (display == HpDisplay.NONE || size <= 0) {
             return;
@@ -281,7 +279,7 @@ class BetterBossHealthBarOverlay extends Overlay {
         FontMetrics fm = g.getFontMetrics();
         int x = (width - fm.stringWidth(text)) / 2;
         int y = barY + (barHeight + fm.getAscent() - fm.getDescent()) / 2;
-        drawText(g, text, x, y, config.hpTextColor(), false);
+        drawText(g, text, x, y, config.hpTextColor(), config.hpShadowOffset(), config.hpShadowColor());
     }
 
     private String getHpText(HpDisplay display, int current, int max) {
@@ -324,11 +322,10 @@ class BetterBossHealthBarOverlay extends Overlay {
         return hpFont;
     }
 
-    private static void drawText(Graphics2D g, String text, int x, int y, Color color, boolean shadow) {
-        // Draw text offset slightly for a slight shadow.
-        if (shadow) {
-            g.setColor(Color.BLACK);
-            g.drawString(text, x + 1, y + 1);
+    private void drawText(Graphics2D g, String text, int x, int y, Color color, int shadowOffset, Color shadowColor) {
+        if (shadowOffset != 0) {
+            g.setColor(shadowColor);
+            g.drawString(text, x + shadowOffset, y + shadowOffset);
         }
 
         g.setColor(color);

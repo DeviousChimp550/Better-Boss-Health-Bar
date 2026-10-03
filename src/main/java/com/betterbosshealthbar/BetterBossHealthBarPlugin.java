@@ -6,9 +6,7 @@ import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import javax.inject.Inject;
 
 import lombok.AccessLevel;
@@ -26,7 +24,6 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetPositionMode;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -36,11 +33,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 
-/**
- * Mirrors the game's boss health bar: while the game shows its bar for a boss, the bar is
- * hidden and redrawn in the same place with the same values. Anything else the game's
- * bar shows, such as regular monsters, is left untouched unless "All health bars" is chosen.
- */
 @Slf4j
 @PluginDescriptor(
         name = "Better Boss Health Bar",
@@ -72,11 +64,6 @@ public class BetterBossHealthBarPlugin extends Plugin {
     @Getter(AccessLevel.PACKAGE)
     private int tickCount;
 
-    /**
-     * Width of the default boss health bar, used when the configured width is 0.
-     */
-    @Getter(AccessLevel.PACKAGE)
-    private int gameBarWidth;
     private boolean collapsed;
 
     private Map<String, float[]> breakpoints = Collections.emptyMap();
@@ -88,14 +75,9 @@ public class BetterBossHealthBarPlugin extends Plugin {
     @Getter
     private Font rs3SmallFont;
 
-    /**
-     * Default health bar components this plugin has hidden, restored on shutdown.
-     */
-    private final Set<Integer> hiddenWidgetIds = new HashSet<>();
-
     private int lastBossVarbit = -1;
 
-    // Store the dimensions of the original gamebar to restore them later.
+    // Store the dimensions of the original boss bar to restore it later.
     private int originalWidth = -1;
     private int originalHeight = -1;
 
@@ -111,7 +93,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
         try (InputStream is = getClass().getResourceAsStream("/fonts/NotoSans-Regular.ttf")) {
             rs3SmallFont = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(16f);
-            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(rs3Font);
+            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(rs3SmallFont);
         } catch (IOException | FontFormatException e) {
             log.error("Failed to load RS3 font", e);
         }
@@ -122,10 +104,13 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
     @Override
     protected void shutDown() {
-        rs3Font = null;
         overlayManager.remove(overlay);
         state.reset();
         clientThread.invoke(this::restoreGameBar);
+
+        // Free up the font references
+        rs3Font = null;
+        rs3SmallFont = null;
     }
 
     @Subscribe
@@ -155,7 +140,6 @@ public class BetterBossHealthBarPlugin extends Plugin {
             return;
         }
 
-        gameBarWidth = hp.getWidth();
         int current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
         int max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
 
@@ -189,8 +173,8 @@ public class BetterBossHealthBarPlugin extends Plugin {
      */
     private Widget getGameBar() {
         Widget hp = client.getWidget(InterfaceID.HpbarHud.HP);
-        // The plugin hides only the children of HP, so HP's own hidden state still tells
-        // whether the game is showing its health bar.
+
+        // We no longer explicitly hide widgets, but I will leave this check here... out of fear of breaking something...
         if (hp == null || hp.isHidden() || client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP) <= 0) {
             return null;
         }
@@ -202,6 +186,25 @@ public class BetterBossHealthBarPlugin extends Plugin {
         }
         return bossVarbit == 1 ? hp : null;
     }
+
+    // Helper function for collapsing the health widget
+    private void collapse(Widget hp) {
+        if (collapsed && hp.getOriginalWidth() == 0 && hp.getOriginalHeight() == 0) {
+            return;
+        }
+
+        if (!collapsed) {
+            originalWidth = hp.getOriginalWidth();
+            originalHeight = hp.getOriginalHeight();
+        }
+
+        hp.setOriginalWidth(0);
+        hp.setOriginalHeight(0);
+        hp.revalidate();
+
+        collapsed = true;
+    }
+
 
     /**
      * Hides the game's health bar while it is showing a bar this plugin replaces, and hands
@@ -216,49 +219,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
             return null;
         }
 
-        // Store original dimensions
-        if (originalWidth == -1) {
-            originalWidth = hp.getOriginalWidth();
-            originalHeight = hp.getOriginalHeight();
-        }
-
-        // Check if dimensions have been uncollapsed.
-        boolean hasUncollapsedDimensions = hp.getOriginalWidth() != 0 || hp.getOriginalHeight() != 0;
-
-        // Check if children managed to sneak back into visibility
-        if (!hasUncollapsedDimensions && collapsed) {
-            Widget[] children = hp.getStaticChildren();
-            if (children != null) {
-                for (Widget child : children) {
-                    // If a child we tracked sneaked back to being visible, flag an override
-                    if (hiddenWidgetIds.contains(child.getId()) && !child.isHidden()) {
-                        hasUncollapsedDimensions = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Perform game widget collapse when necessary
-        if (hasUncollapsedDimensions || !collapsed) {
-            hp.setOriginalWidth(0);
-            hp.setOriginalHeight(0);
-
-            Widget[] children = hp.getStaticChildren();
-            if (children != null) {
-                for (Widget child : children) {
-                    if (!child.isSelfHidden() || hiddenWidgetIds.contains(child.getId())) {
-                        child.setHidden(true);
-                        hiddenWidgetIds.add(child.getId());
-                    }
-                }
-            }
-
-            // Revalidate ONLY during a collapse.
-            hp.revalidate();
-            collapsed = true;
-        }
-
+        collapse(hp);
         return hp;
     }
 
@@ -299,33 +260,19 @@ public class BetterBossHealthBarPlugin extends Plugin {
     }
 
     private void restoreGameBar() {
-        Widget hp = getGameBar();
-        if (hp == null) {
-            // If the game bar doesn't exist (e.g. hopped worlds), just wipe states
-            hiddenWidgetIds.clear();
-            collapsed = false;
+        // Simplified handling of health bar, removing the complicated hidden children managment system.
+        if (!collapsed) {
             return;
         }
 
-        // Unhide the children using the parent container references
-        Widget[] children = hp.getStaticChildren();
-        if (children != null && !hiddenWidgetIds.isEmpty()) {
-            for (Widget child : children) {
-                if (hiddenWidgetIds.contains(child.getId())) {
-                    child.setHidden(false);
-                }
-            }
-        }
-        hiddenWidgetIds.clear(); // Always clean up the IDs
-
-        // Rise the OG phoenix from the ashes!
-        if (collapsed) {
+        Widget hp = client.getWidget(InterfaceID.HpbarHud.HP);
+        if (hp != null) {
             hp.setOriginalWidth(originalWidth);
             hp.setOriginalHeight(originalHeight);
-            hp.revalidate(); // Revalidate exactly once to bring it back cleanly
-
-            collapsed = false; // Reset collapsed state
+            hp.revalidate();
         }
+
+        collapsed = false;
     }
 
     @Provides

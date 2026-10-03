@@ -16,18 +16,18 @@ public interface BetterBossHealthBarConfig extends Config {
     String BREAKPOINTS_KEY = "breakpoints";
 
     @ConfigSection(
-            name = "Size",
-            description = "Dimensions of the health bar and its text",
+            name = "Health Bar",
+            description = "Size and color of the health bar.",
             position = 10
     )
-    String sizeSection = "size";
+    String healthbarSection = "healthbar";
 
     @ConfigSection(
-            name = "Colors",
-            description = "Colors of the health bar",
+            name = "Text",
+            description = "Size and colors of rendered text.",
             position = 20
     )
-    String colorSection = "colors";
+    String textSection = "text";
 
     @ConfigSection(
             name = "Animation",
@@ -43,7 +43,7 @@ public interface BetterBossHealthBarConfig extends Config {
     )
     String breakpointSection = "breakpoints";
 
-    // General
+    // Preview Toggle
     @ConfigItem(
             keyName = "preview",
             name = "Preview",
@@ -54,12 +54,14 @@ public interface BetterBossHealthBarConfig extends Config {
         return false;
     }
 
+    // Health Bar Section
     @ConfigItem(
             keyName = "style",
             name = "Style",
             description = "Old School: flat bar with breakpoints split into separate segments.<br>"
                     + "Modern: rounded, shaded bar with breakpoints shown as notches.",
-            position = 1
+            position = 0,
+            section = healthbarSection
     )
     default BarStyle style() {
         return BarStyle.OLD_SCHOOL;
@@ -69,21 +71,21 @@ public interface BetterBossHealthBarConfig extends Config {
             keyName = "hpDisplay",
             name = "HP Display",
             description = "How the boss's hitpoints are shown inside the bar",
-            position = 2
+            position = 1,
+            section = healthbarSection
     )
     default HpDisplay hpDisplay() {
         return HpDisplay.PERCENT;
     }
 
-    // Size
     @Range(max = 1000)
     @Units(Units.PIXELS)
     @ConfigItem(
             keyName = "barWidth",
             name = "Width",
             description = "Width of the bar.",
-            position = 0,
-            section = sizeSection
+            position = 2,
+            section = healthbarSection
     )
     default int barWidth() {
         return 240;
@@ -95,59 +97,19 @@ public interface BetterBossHealthBarConfig extends Config {
             keyName = "barHeight",
             name = "Height",
             description = "Height of the bar.",
-            position = 1,
-            section = sizeSection
+            position = 3,
+            section = healthbarSection
     )
     default int barHeight() {
         return 12;
     }
 
-    @Range(max = 4)
-    @Units(Units.PIXELS)
-    @ConfigItem(
-            keyName = "borderWidth",
-            name = "Border Width",
-            description = "Thickness of the border. 0 disables the border.",
-            position = 2,
-            section = sizeSection
-    )
-    default int borderWidth() {
-        return 1;
-    }
-
-    @Range(max = 32)
-    @Units(Units.PIXELS)
-    @ConfigItem(
-            keyName = "nameFontSize",
-            name = "Name Font Size",
-            description = "Font size of the boss name above the bar. 0 hides the name.",
-            position = 3,
-            section = sizeSection
-    )
-    default int nameFontSize() {
-        return 16;
-    }
-
-    @Range(max = 32)
-    @Units(Units.PIXELS)
-    @ConfigItem(
-            keyName = "hpFontSize",
-            name = "HP Font Size",
-            description = "Font size of the HP text inside the bar. 0 hides the HP text.",
-            position = 4,
-            section = sizeSection
-    )
-    default int hpFontSize() {
-        return 16;
-    }
-
-    // Colors
     @ConfigItem(
             keyName = "healthColor",
-            name = "Health",
+            name = "Health Color",
             description = "Color of the remaining health",
-            position = 0,
-            section = colorSection
+            position = 4,
+            section = healthbarSection
     )
     default Color healthColor() {
         return new Color(0, 146, 54);
@@ -156,75 +118,138 @@ public interface BetterBossHealthBarConfig extends Config {
     @Alpha
     @ConfigItem(
             keyName = "backgroundColor",
-            name = "Background",
+            name = "Background Color",
             description = "Color of the missing health",
-            position = 1,
-            section = colorSection
+            position = 5,
+            section = healthbarSection
     )
     default Color backgroundColor() {
         return new Color(120, 18, 18);
     }
 
-    @Alpha
+    @Range(max = 4)
+    @Units(Units.PIXELS)
     @ConfigItem(
-            keyName = "bufferColor",
-            name = "Buffer",
-            description = "Color of the recent damage that has not drained yet",
-            position = 2,
-            section = colorSection
+            keyName = "borderWidth",
+            name = "Border Width",
+            description = "Thickness of the border. 0 disables the border.",
+            position = 6,
+            section = healthbarSection
     )
-    default Color bufferColor() {
-        return new Color(230, 180, 40);
+    default int borderWidth() {
+        return 1;
     }
 
     @Alpha
     @ConfigItem(
             keyName = "borderColor",
-            name = "Border",
+            name = "Border Color",
             description = "Color of the border and the breakpoint notches",
-            position = 3,
-            section = colorSection
+            position = 7,
+            section = healthbarSection
     )
     default Color borderColor() {
         return Color.BLACK;
     }
 
-    @Alpha
+    // Text Section
+    @Range(max = 32)
+    @Units(Units.PIXELS)
     @ConfigItem(
-            keyName = "hitFlashColor",
-            name = "Hit Flash",
-            description = "Color the bar flashes when the boss takes damage",
-            position = 4,
-            section = colorSection
+            keyName = "nameSize",
+            name = "Name Size",
+            description = "Font size of the boss name above the bar.",
+            position = 0,
+            section = textSection
     )
-    default Color hitFlashColor() {
-        return new Color(255, 255, 255, 170);
+    default int nameSize() {
+        return 16;
     }
 
     @ConfigItem(
             keyName = "nameColor",
-            name = "Name",
+            name = "Name Color",
             description = "Color of the boss name",
-            position = 5,
-            section = colorSection
+            position = 1,
+            section = textSection
     )
     default Color nameColor() {
         return new Color(230, 180, 40);
     }
 
+    @Range(max = 3)
+    @Units(Units.PIXELS)
+    @ConfigItem(
+            keyName = "nameShadowOffset",
+            name = "Name Shadow Offset",
+            description = "How many pixels to offset the shadow on the boss name.",
+            position = 2,
+            section = textSection
+    )
+    default int nameShadowOffset() {
+        return 1;
+    }
+
+    @ConfigItem(
+            keyName = "nameShadowColor",
+            name = "Name Shadow Color",
+            description = "Color of the text shadow on the boss name.",
+            position = 3,
+            section = textSection
+    )
+    default Color nameShadowColor() {
+        return Color.BLACK;
+    }
+
+    @Range(max = 32)
+    @Units(Units.PIXELS)
+    @ConfigItem(
+            keyName = "hpSize",
+            name = "HP Size",
+            description = "Font size of the HP text inside the bar.",
+            position = 4,
+            section = textSection
+    )
+    default int hpSize() {
+        return 16;
+    }
+
     @ConfigItem(
             keyName = "hpTextColor",
-            name = "HP Text",
+            name = "HP Color",
             description = "Color of the HP text inside the bar",
-            position = 6,
-            section = colorSection
+            position = 5,
+            section = textSection
     )
     default Color hpTextColor() {
         return Color.WHITE;
     }
 
-    // Animation
+    @Range(max = 3)
+    @Units(Units.PIXELS)
+    @ConfigItem(
+            keyName = "hpShadowOffset",
+            name = "HP Shadow Offset",
+            description = "How many pixels to offset the shadow on the hp text.",
+            position = 6,
+            section = textSection
+    )
+    default int hpShadowOffset() {
+        return 1;
+    }
 
+    @ConfigItem(
+            keyName = "hpShadowColor",
+            name = "HP Shadow Color",
+            description = "Color of the text shadow on the hp text.",
+            position = 7,
+            section = textSection
+    )
+    default Color hpShadowColor() {
+        return Color.BLACK;
+    }
+
+    // Animation Section
     @Range(max = 50)
     @ConfigItem(
             keyName = "interpolationSpeed",
@@ -237,29 +262,42 @@ public interface BetterBossHealthBarConfig extends Config {
         return 12;
     }
 
+    @Range(max = 50)
+    @ConfigItem(
+            keyName = "bufferSpeed",
+            name = "Buffer Drain Speed",
+            description = "How quickly the buffer drains once its delay ends. Higher is faster. 0 snaps instantly.",
+            position = 1,
+            section = animationSection
+    )
+    default int bufferSpeed() {
+        return 6;
+    }
+
     @Range(max = 20)
     @Units(Units.TICKS)
     @ConfigItem(
             keyName = "bufferDelay",
             name = "Buffer Delay",
             description = "Game ticks the damage buffer waits after the last hit before draining.",
-            position = 1,
+            position = 2,
             section = animationSection
     )
     default int bufferDelay() {
         return 2;
     }
 
-    @Range(max = 50)
+
+    @Alpha
     @ConfigItem(
-            keyName = "bufferSpeed",
-            name = "Buffer Drain Speed",
-            description = "How quickly the buffer drains once its delay ends. Higher is faster. 0 snaps instantly.",
-            position = 2,
+            keyName = "bufferColor",
+            name = "Buffer Color",
+            description = "Color of the recent damage that has not drained yet",
+            position = 3,
             section = animationSection
     )
-    default int bufferSpeed() {
-        return 6;
+    default Color bufferColor() {
+        return new Color(230, 180, 40);
     }
 
     @Range(max = 2000)
@@ -268,15 +306,26 @@ public interface BetterBossHealthBarConfig extends Config {
             keyName = "hitFlashDuration",
             name = "Hit Flash Duration",
             description = "How long the bar flashes when the boss takes damage.",
-            position = 3,
+            position = 4,
             section = animationSection
     )
     default int hitFlashDuration() {
         return 200;
     }
 
-    // Breakpoints
+    @Alpha
+    @ConfigItem(
+            keyName = "hitFlashColor",
+            name = "Hit Flash Color",
+            description = "Color the bar flashes when the boss takes damage",
+            position = 5,
+            section = animationSection
+    )
+    default Color hitFlashColor() {
+        return new Color(255, 255, 255, 170);
+    }
 
+    // Breakpoint Section
     @Range(max = 10)
     @Units(Units.PIXELS)
     @ConfigItem(
