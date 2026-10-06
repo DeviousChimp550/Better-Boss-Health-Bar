@@ -5,21 +5,14 @@ import com.google.inject.Provides;
 import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
 import javax.inject.Inject;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.NPCComposition;
-import net.runelite.api.ScriptID;
-import net.runelite.api.events.BeforeRender;
-import net.runelite.api.events.ClientTick;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.ScriptPostFired;
-import net.runelite.api.events.ScriptPreFired;
+import net.runelite.api.*;
+import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
@@ -77,6 +70,16 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
     private int lastBossVarbit = -1;
 
+    // Only Zulrah added for now, but other missing bosses can be added in the near future.
+    private static final Map<String, Integer> EXTRA_BOSSES = Map.of(
+            "zulrah", 500
+    );
+    private static final int GRACE_TICKS = 12;
+    private static final int NEARBY_DISTANCE = 20; // tiles
+
+    private final Set<NPC> nearbyBosses = new HashSet<>();
+    private int extraSeenTick = -1000;
+
     // Store the dimensions of the original boss bar to restore it later.
     private int originalWidth = -1;
     private int originalHeight = -1;
@@ -100,6 +103,15 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
         loadBreakpoints();
         overlayManager.add(overlay);
+
+        // If any white listed bosses are nearby on start, add them to the list.
+        clientThread.invoke(() -> {
+            for (NPC npc : client.getNpcs()) {
+                if (isWhitelisted(npc)) {
+                    nearbyBosses.add(npc);
+                }
+            }
+        });
     }
 
     @Override
@@ -111,6 +123,9 @@ public class BetterBossHealthBarPlugin extends Plugin {
         // Free up the font references
         rs3Font = null;
         rs3SmallFont = null;
+
+        // Remove any references to bosses on shutdown.
+        nearbyBosses.clear();
     }
 
     @Subscribe
@@ -134,16 +149,43 @@ public class BetterBossHealthBarPlugin extends Plugin {
             return;
         }
 
+        String name;
+        int current;
+        int max;
+
         Widget hp = getGameBar();
-        if (hp == null) {
-            state.deactivate();
-            return;
+        if (hp != null) {
+            // The game is showing it's own bar, use it.
+            name = readBossName();
+            current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
+            max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
+        } else {
+            NPC npc = getNearestBoss();
+            if (npc == null) {
+                // No whitelisted boss in range. Keep the bar for a few ticks, then fade out.
+                if (tickCount - extraSeenTick > GRACE_TICKS) {
+                    state.deactivate();
+                }
+                return;
+            }
+
+            extraSeenTick = tickCount;
+
+            name = Text.removeTags(npc.getName());
+            max = EXTRA_BOSSES.get(name.toLowerCase(Locale.ROOT));
+
+            if (npc.isDead()) {
+                current = 0;
+            } else if (npc.getHealthScale() > 0 && npc.getHealthRatio() >= 0) {
+                current = (int) Math.ceil(npc.getHealthRatio() * max / (double) npc.getHealthScale());
+            } else if (state.isActive() && state.getName().equals(name)) {
+                return;
+            } else {
+                current = max;
+            }
         }
 
-        int current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
-        int max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
-
-        state.update(readBossName(), current, max, tickCount, System.nanoTime(), config.bufferDelay());
+        state.update(name, current, max, tickCount, System.nanoTime(), config.bufferDelay());
     }
 
     @Subscribe
@@ -273,6 +315,50 @@ public class BetterBossHealthBarPlugin extends Plugin {
         }
 
         collapsed = false;
+    }
+
+    @Subscribe
+    public void onNpcSpawned(NpcSpawned event) {
+        NPC npc = event.getNpc();
+        if (isWhitelisted(npc)) {
+            nearbyBosses.add(npc);
+        }
+    }
+
+    @Subscribe
+    public void onNpcDespawned(NpcDespawned event) {
+        nearbyBosses.remove(event.getNpc());
+    }
+
+    @Subscribe
+    public void onGameStateChanged(GameStateChanged event) {
+        // NPCs that left are removed by despawn events, so only clear on a full reset
+        if (event.getGameState() == GameState.HOPPING || event.getGameState() == GameState.LOGIN_SCREEN) {
+            nearbyBosses.clear();
+        }
+    }
+
+    private boolean isWhitelisted(NPC npc) {
+        String npcName = npc.getName();
+        return npcName != null && EXTRA_BOSSES.containsKey(Text.removeTags(npcName).toLowerCase(Locale.ROOT));
+    }
+
+    private NPC getNearestBoss() {
+        Player player = client.getLocalPlayer();
+        if (player == null) {
+            return null;
+        }
+
+        NPC nearest = null;
+        int best = NEARBY_DISTANCE + 1;
+        for (NPC npc : nearbyBosses) {
+            int distance = npc.getWorldLocation().distanceTo(player.getWorldLocation());
+            if (distance < best) {
+                best = distance;
+                nearest = npc;
+            }
+        }
+        return nearest;
     }
 
     @Provides
