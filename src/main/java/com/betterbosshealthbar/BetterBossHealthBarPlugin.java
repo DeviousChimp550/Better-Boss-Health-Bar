@@ -29,8 +29,8 @@ import net.runelite.client.util.Text;
 @Slf4j
 @PluginDescriptor(
         name = "Better Boss Health Bar",
-        description = "Replaces the default boss health bar with a slim, animated, customizable one",
-        tags = {"boss", "health", "hp", "bar", "hud", "overlay", "pvm"}
+        description = "Replaces the default boss health bar with a dynamic and customizable one.",
+        tags = {"boss", "health", "healthbar", "hitpoints", "hp", "bar", "hud", "overlay", "pvm", "better", "ui", "combat", "theme"}
 )
 public class BetterBossHealthBarPlugin extends Plugin {
     @Inject
@@ -70,14 +70,16 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
     private int lastBossVarbit = -1;
 
-    // Only Zulrah added for now, but other missing bosses can be added in the near future.
     private static final Map<String, Integer> EXTRA_BOSSES = Map.of(
-            "zulrah", 500
+            "zulrah", 500,
+            "giant mole", 200,
+            "corporeal beast", 2000
     );
     private static final int GRACE_TICKS = 12;
     private static final int NEARBY_DISTANCE = 20; // tiles
 
     private final Set<NPC> nearbyBosses = new HashSet<>();
+    private final Map<String, Integer> lastKnownHp = new HashMap<>();
     private int extraSeenTick = -1000;
 
     // Store the dimensions of the original boss bar to restore it later.
@@ -126,6 +128,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
         // Remove any references to bosses on shutdown.
         nearbyBosses.clear();
+        lastKnownHp.clear();
     }
 
     @Subscribe
@@ -176,12 +179,13 @@ public class BetterBossHealthBarPlugin extends Plugin {
 
             if (npc.isDead()) {
                 current = 0;
+                lastKnownHp.remove(name); // a respawn starts at full health
             } else if (npc.getHealthScale() > 0 && npc.getHealthRatio() >= 0) {
                 current = (int) Math.ceil(npc.getHealthRatio() * max / (double) npc.getHealthScale());
-            } else if (state.isActive() && state.getName().equals(name)) {
-                return;
+                lastKnownHp.put(name, current);
             } else {
-                current = max;
+                // Use last know hp, if it exists. Otherwise, assume it's full.
+                current = lastKnownHp.getOrDefault(name, max);
             }
         }
 
@@ -335,6 +339,7 @@ public class BetterBossHealthBarPlugin extends Plugin {
         // NPCs that left are removed by despawn events, so only clear on a full reset
         if (event.getGameState() == GameState.HOPPING || event.getGameState() == GameState.LOGIN_SCREEN) {
             nearbyBosses.clear();
+            lastKnownHp.clear();
         }
     }
 

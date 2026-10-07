@@ -4,6 +4,10 @@ A Runelite plugin that replaces the default boss health bar with a dynamic and c
 
 ![Zulrah Example](images/zulrah-example.png)
 
+![Doom Example](images/doom-example.png)
+
+![Moxi Example](images/moxi-example.png)
+
 ## Features
 
 - **Customization**: Customize the boss health bar to suit your needs! Select a style, change the colors, and even tweak the animated properties to perfect your UI.
