@@ -16,6 +16,7 @@ class BetterBossHealthBarOverlay extends Overlay {
     private static final float[] GRADIENT_STOPS = {0f, 0.5f, 1f};
     private static final Color GLOSS_TOP = new Color(255, 255, 255, 80);
     private static final Color GLOSS_BOTTOM = new Color(255, 255, 255, 0);
+    private static final int TOP_PADDING = 10;
 
     private final BetterBossHealthBarPlugin plugin;
     private final BetterBossHealthBarConfig config;
@@ -29,6 +30,8 @@ class BetterBossHealthBarOverlay extends Overlay {
     private HpDisplay hpTextDisplay;
     private int hpTextCurrent = -1;
     private int hpTextMax = -1;
+
+    private Color healthColor;
 
     @Inject
     BetterBossHealthBarOverlay(BetterBossHealthBarPlugin plugin, BetterBossHealthBarConfig config) {
@@ -75,6 +78,7 @@ class BetterBossHealthBarOverlay extends Overlay {
         int outerHeight = barHeight + border * 2;
 
         Graphics2D g = (Graphics2D) graphics.create();
+        g.translate(0, TOP_PADDING);
 
         // Apply opaque transparency layer over the entire health bar, based on the visibility value.
         if (config.preview()) {
@@ -110,6 +114,8 @@ class BetterBossHealthBarOverlay extends Overlay {
             float flash = state.flashAlpha(now, config.hitFlashDuration());
             Color flashColor = flash > 0 ? scaleAlpha(config.hitFlashColor(), flash) : null;
 
+            healthColor = state.isShield() ? config.shieldColor() : config.healthColor();
+
             if (config.style() == BarStyle.RUNESCAPE_3) {
                 drawRunescape3(g, barY, width, outerHeight, border, breakpoints, state.getFill(), state.getBuffer(), flashColor);
             } else {
@@ -118,7 +124,7 @@ class BetterBossHealthBarOverlay extends Overlay {
 
             drawHpText(g, state, barY + (int) Math.round(barHeight / 16.0), width, outerHeight);
 
-            return new Dimension(width, barY + outerHeight);
+            return new Dimension(width, TOP_PADDING + barY + outerHeight);
         } finally {
             g.dispose();
         }
@@ -173,7 +179,7 @@ class BetterBossHealthBarOverlay extends Overlay {
         g.fillRect(left, top, right - left, innerHeight);
 
         fillSpan(g, config.bufferColor(), fillEnd, bufferEnd, left, right, top, innerHeight);
-        fillSpan(g, config.healthColor(), left, fillEnd, left, right, top, innerHeight);
+        fillSpan(g, healthColor, left, fillEnd, left, right, top, innerHeight);
 
         if (flashColor != null) {
             fillSpan(g, flashColor, left, bufferEnd, left, right, top, innerHeight);
@@ -212,7 +218,7 @@ class BetterBossHealthBarOverlay extends Overlay {
         Color background = config.backgroundColor();
         fillLayer(g, inner, bufferEnd, innerRight, innerY, innerHeight, new GradientPaint(0, innerY, darken(background, 0.55f), 0, bottom, background));
         fillLayer(g, inner, fillEnd, bufferEnd, innerY, innerHeight, bevel(config.bufferColor(), innerY, bottom));
-        fillLayer(g, inner, innerX, fillEnd, innerY, innerHeight, bevel(config.healthColor(), innerY, bottom));
+        fillLayer(g, inner, innerX, fillEnd, innerY, innerHeight, bevel(healthColor, innerY, bottom));
 
         fillLayer(g, inner, innerX, innerRight, innerY, innerHeight / 2, new GradientPaint(0, innerY, GLOSS_TOP, 0, innerY + innerHeight / 2, GLOSS_BOTTOM));
 

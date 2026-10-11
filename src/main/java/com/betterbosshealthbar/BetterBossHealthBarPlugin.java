@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
@@ -81,6 +82,27 @@ public class BetterBossHealthBarPlugin extends Plugin {
     private final Set<NPC> nearbyBosses = new HashSet<>();
     private final Map<String, Integer> lastKnownHp = new HashMap<>();
     private int extraSeenTick = -1000;
+
+    private static final Set<Integer> SHIELD_NPC_IDS = Set.of(
+            11719, // Kephri
+            12079, // Muspah
+            12075, // Strange Creature (Quest Muspah)
+            14011, // Hueycoatl
+            9423, // Phosani's Intro
+            377, // Phosani Defeated
+            9418, // Phosani P1
+            9417, // Phosani P2
+            9416, // Phosani P3,
+            11153, // Phosani Alt?
+            9460, // Nightmare Intro
+            9427, // Nightmare P1
+            9426, // Nightmare P2
+            9425 // Nightmare P3
+    );
+
+    private boolean isShield() {
+        return SHIELD_NPC_IDS.contains(client.getVarcIntValue(VarClientID.HPBAR_HUD_LAST_NPC));
+    }
 
     // Store the dimensions of the original boss bar to restore it later.
     private int originalWidth = -1;
@@ -162,9 +184,11 @@ public class BetterBossHealthBarPlugin extends Plugin {
             name = readBossName();
             current = client.getVarbitValue(VarbitID.HPBAR_HUD_HP);
             max = client.getVarbitValue(VarbitID.HPBAR_HUD_BASEHP);
+            state.setShield(isShield());
         } else {
             NPC npc = getNearestBoss();
             if (npc == null) {
+                state.setShield(false); // Whitelisted bosses not supported for shield rendering yet.
                 // No whitelisted boss in range. Keep the bar for a few ticks, then fade out.
                 if (tickCount - extraSeenTick > GRACE_TICKS) {
                     state.deactivate();

@@ -1,6 +1,7 @@
 package com.betterbosshealthbar;
 
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Tracks the true boss health and the animated values drawn by the overlay.
@@ -20,6 +21,9 @@ class HealthBarState {
     private int currentHp;
     @Getter
     private int maxHp;
+
+    @Getter @Setter
+    private boolean shield;
 
     /**
      * True health fraction reported by the game.
@@ -52,6 +56,7 @@ class HealthBarState {
         flashStartNanos = 0;
         lastFrameNanos = 0;
         visibility = 0;
+        shield = false;
     }
 
     /**

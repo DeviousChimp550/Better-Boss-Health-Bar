@@ -115,12 +115,24 @@ public interface BetterBossHealthBarConfig extends Config {
         return new Color(0, 146, 54);
     }
 
+    @ConfigItem(
+            keyName = "shieldColor",
+            name = "Shield Color",
+            description = "Color of the bar while the boss's shield is up",
+            position = 5,
+            section = healthbarSection
+    )
+    default Color shieldColor()
+    {
+        return new Color(0, 120, 255);
+    }
+
     @Alpha
     @ConfigItem(
             keyName = "backgroundColor",
             name = "Background Color",
             description = "Color of the missing health",
-            position = 5,
+            position = 6,
             section = healthbarSection
     )
     default Color backgroundColor() {
@@ -133,7 +145,7 @@ public interface BetterBossHealthBarConfig extends Config {
             keyName = "borderWidth",
             name = "Border Width",
             description = "Thickness of the border. 0 disables the border.",
-            position = 6,
+            position = 7,
             section = healthbarSection
     )
     default int borderWidth() {
@@ -145,7 +157,7 @@ public interface BetterBossHealthBarConfig extends Config {
             keyName = "borderColor",
             name = "Border Color",
             description = "Color of the border and the breakpoint notches",
-            position = 7,
+            position = 8,
             section = healthbarSection
     )
     default Color borderColor() {
