@@ -64,7 +64,7 @@ public interface BetterBossHealthBarConfig extends Config {
             section = healthbarSection
     )
     default BarStyle style() {
-        return BarStyle.OLD_SCHOOL;
+        return BarStyle.RUNESCAPE_3;
     }
 
     @ConfigItem(
@@ -88,7 +88,7 @@ public interface BetterBossHealthBarConfig extends Config {
             section = healthbarSection
     )
     default int barWidth() {
-        return 240;
+        return 300;
     }
 
     @Range(min = 2, max = 40)
@@ -101,7 +101,7 @@ public interface BetterBossHealthBarConfig extends Config {
             section = healthbarSection
     )
     default int barHeight() {
-        return 12;
+        return 14;
     }
 
     @ConfigItem(
@@ -124,7 +124,7 @@ public interface BetterBossHealthBarConfig extends Config {
     )
     default Color shieldColor()
     {
-        return new Color(0, 120, 255);
+        return new Color(0, 180, 160);
     }
 
     @Alpha
