@@ -141,6 +141,16 @@ class BetterBossHealthBarOverlay extends Overlay {
         int bufferEnd = innerLeft + (int) Math.round(innerWidth * buffer);
         int gap = config.breakpointSize();
 
+        if (config.breakpointStyle() == BreakpointStyle.LINE) {
+            drawSegment(g, 0, y, width, height, border, fillEnd, bufferEnd, flashColor);
+            g.setColor(config.borderColor());
+            for (float breakpoint : breakpoints) {
+                int split = innerLeft + Math.round(innerWidth * breakpoint);
+                g.fillRect(split - gap / 2, y, gap, height);
+            }
+            return;
+        }
+
         int segmentStart = 0;
         for (int i = 0; i <= breakpoints.length; i++) {
             int segmentEnd;
@@ -239,6 +249,18 @@ class BetterBossHealthBarOverlay extends Overlay {
         float bufferEnd = innerX + (float) (innerWidth * buffer);
 
         int gap = config.breakpointSize();
+
+        if (config.breakpointStyle() == BreakpointStyle.LINE) {
+            drawRS3Segment(g, 0, y, width, height, border, fillEnd, bufferEnd, flashColor);
+            g.setColor(config.borderColor());
+            for (float breakpoint : breakpoints) {
+                // Snap to whole pixels so anti-aliasing doesn't blur the line
+                int split = Math.round(innerX + innerWidth * breakpoint);
+                g.fillRect(split - gap / 2, y, gap, height);
+            }
+            return;
+        }
+
         float segmentStart = 0;
         for (int i = 0; i <= breakpoints.length; i++) {
             float segmentEnd;
