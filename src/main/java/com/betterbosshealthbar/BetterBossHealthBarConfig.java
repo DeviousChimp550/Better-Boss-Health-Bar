@@ -338,13 +338,25 @@ public interface BetterBossHealthBarConfig extends Config {
     }
 
     // Breakpoint Section
+    @ConfigItem(
+            keyName = "breakpointStyle",
+            name = "Breakpoint Style",
+            description = "Gap: splits the bar into separate segments at each breakpoint.<br>"
+                    + "Line: keeps one continuous bar and draws a line in the border color at each breakpoint.",
+            position = 0,
+            section = breakpointSection
+    )
+    default BreakpointStyle breakpointStyle() {
+        return BreakpointStyle.GAP;
+    }
+
     @Range(max = 10)
     @Units(Units.PIXELS)
     @ConfigItem(
             keyName = "breakpointSize",
             name = "Breakpoint Size",
-            description = "Width of each breakpoint.",
-            position = 0,
+            description = "Width of each breakpoint gap or line. 0 hides breakpoints.",
+            position = 1,
             section = breakpointSection
     )
     default int breakpointSize() {
@@ -357,7 +369,7 @@ public interface BetterBossHealthBarConfig extends Config {
             description = "One boss per line: the boss name, a colon, then percentages separated by commas.<br>"
                     + "Example: Alchemical Hydra: 75, 50, 25<br>"
                     + "Names are not case sensitive. Lines starting with # are ignored.",
-            position = 1,
+            position = 2,
             section = breakpointSection
     )
     default String breakpoints() {

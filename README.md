@@ -29,3 +29,9 @@ To configure breakpoints, type the boss name, a colon, and then the breakpoint p
 Alchemical Hydra: 75, 50, 25
 Yama: 66, 33
 ```
+
+**Breakpoint Style** controls how breakpoints are drawn:
+- **Gap**: splits the bar into separate segments.
+- **Line**: keeps one continuous bar and draws a line in the border color at each breakpoint.
+
+**Breakpoint Size** sets the width of each gap or line. Setting it to 0 hides breakpoints.
